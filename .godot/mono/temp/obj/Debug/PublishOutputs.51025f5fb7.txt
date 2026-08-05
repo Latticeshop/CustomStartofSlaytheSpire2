@@ -1,0 +1,10 @@
+D:\RedAlert2Project\red-alert-2-mod\build\RestuLib\lib\0.109.0\STS2-RitsuLib.dll
+D:\RedAlert2Project\red-alert-2-mod\build\RedAlert2Mod.dll
+D:\RedAlert2Project\red-alert-2-mod\build\RedAlert2Mod.deps.json
+D:\RedAlert2Project\red-alert-2-mod\build\RedAlert2Mod.runtimeconfig.json
+D:\RedAlert2Project\red-alert-2-mod\build\RedAlert2Mod.pdb
+D:\RedAlert2Project\red-alert-2-mod\build\GodotSharp.dll
+D:\RedAlert2Project\red-alert-2-mod\build\GodotSharpEditor.dll
+D:\RedAlert2Project\red-alert-2-mod\build\STS2-RitsuLib.dll
+D:\RedAlert2Project\red-alert-2-mod\build\STS2-RitsuLib.pdb
+D:\RedAlert2Project\red-alert-2-mod\build\STS2-RitsuLib.xml

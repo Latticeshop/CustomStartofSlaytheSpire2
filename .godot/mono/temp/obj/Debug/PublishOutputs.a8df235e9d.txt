@@ -1,0 +1,8 @@
+D:\RedAlert2Project\red-alert-2-mod\.godot\mono\temp\bin\Debug\publish\BaseLib\BaseLib.dll
+D:\RedAlert2Project\red-alert-2-mod\.godot\mono\temp\bin\Debug\publish\RedAlert2Mod.dll
+D:\RedAlert2Project\red-alert-2-mod\.godot\mono\temp\bin\Debug\publish\RedAlert2Mod.deps.json
+D:\RedAlert2Project\red-alert-2-mod\.godot\mono\temp\bin\Debug\publish\RedAlert2Mod.runtimeconfig.json
+D:\RedAlert2Project\red-alert-2-mod\.godot\mono\temp\bin\Debug\publish\RedAlert2Mod.pdb
+D:\RedAlert2Project\red-alert-2-mod\.godot\mono\temp\bin\Debug\publish\GodotSharp.dll
+D:\RedAlert2Project\red-alert-2-mod\.godot\mono\temp\bin\Debug\publish\GodotSharpEditor.dll
+D:\RedAlert2Project\red-alert-2-mod\.godot\mono\temp\bin\Debug\publish\BaseLib.dll

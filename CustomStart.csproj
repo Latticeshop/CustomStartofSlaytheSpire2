@@ -1,0 +1,36 @@
+<Project Sdk="Godot.NET.Sdk/4.5.1">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <ImplicitUsings>true</ImplicitUsings>
+
+    <!-- Debug符号配置：build时生成，publish时不包含 -->
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- 仅引用游戏程序集与Harmony，无任何前置依赖 -->
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>$(MSBuildProjectDirectory)/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="sts2">
+      <HintPath>$(MSBuildProjectDirectory)/sts2.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- 发布时自动生成 Godot .pck 文件 -->
+  <Target Name="NeedGodotForPublish" BeforeTargets="Publish">
+    <Error Text=" Godot path must be set up before publishing; Godot not found at path '$(GodotPath)'. Check Directory.Build.props file."
+           Condition="'$(GodotPath)' == '' or !Exists('$(GodotPath)')"/>
+  </Target>
+
+  <Target Name="GodotPublish" AfterTargets="Publish" Condition="'$(GodotPath)' != '' and Exists('$(GodotPath)') and '$(IsInnerGodotExport)' != 'true'">
+    <Message Text="Exporting Godot .pck to build folder" Importance="high"/>
+    <Exec Command="&quot;$(GodotPath)&quot; --headless --export-pack &quot;Windows Desktop&quot; &quot;$(MSBuildProjectDirectory)/build/$(MSBuildProjectName).pck&quot;"
+          EnvironmentVariables="IsInnerGodotExport=true;MSBUILDDISABLENODEREUSE=1"
+          ContinueOnError="WarnAndContinue"/>
+  </Target>
+</Project>

@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "amI1FTZ21rg=",
+  "success": true,
+  "projectFilePath": "D:\\RedAlert2Project\\custom-start\\CustomStart.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Latticeshop\\.nuget\\packages\\godot.sourcegenerators\\4.5.1\\godot.sourcegenerators.4.5.1.nupkg.sha512",
+    "C:\\Users\\Latticeshop\\.nuget\\packages\\godotsharp\\4.5.1\\godotsharp.4.5.1.nupkg.sha512",
+    "C:\\Users\\Latticeshop\\.nuget\\packages\\godotsharpeditor\\4.5.1\\godotsharpeditor.4.5.1.nupkg.sha512"
+  ],
+  "logs": []
+}
