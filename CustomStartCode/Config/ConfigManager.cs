@@ -43,6 +43,49 @@ public class CharacterConfig
     /// 自定义初始遗物（遗物类型名列表），为空则使用默认
     /// </summary>
     public List<string> StartingRelicTypes { get; set; } = new();
+
+    /// <summary>
+    /// 初始金币数量（0 = 使用角色默认值）
+    /// </summary>
+    public int StartingGold { get; set; }
+
+    /// <summary>
+    /// 初始血量上限（0 = 使用角色默认值）
+    /// </summary>
+    public int MaxHp { get; set; }
+
+    /// <summary>
+    /// 深拷贝当前配置（供方案快照使用，避免引用共享导致方案被后续编辑污染）。
+    /// </summary>
+    public CharacterConfig Clone()
+    {
+        return new CharacterConfig
+        {
+            CharacterId = CharacterId,
+            CustomDeckCardTypes = new List<string>(CustomDeckCardTypes),
+            EnableCustomDeck = EnableCustomDeck,
+            StartingRelicTypes = new List<string>(StartingRelicTypes),
+            EnableCustomRelics = EnableCustomRelics,
+            StartingGold = StartingGold,
+            MaxHp = MaxHp,
+        };
+    }
+}
+
+/// <summary>
+/// 定制开局配置方案 - 保存全部角色的配置快照
+/// </summary>
+public class DeckConfigPreset
+{
+    /// <summary>
+    /// 方案名称（默认“方案N”）
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 方案内容：全部角色的配置
+    /// </summary>
+    public Dictionary<string, CharacterConfig> Characters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -59,6 +102,11 @@ public static class ConfigManager
     private static readonly MegaCrit.Sts2.Core.Logging.Logger Logger = new("CustomStart", LogType.Generic);
 
     private static Dictionary<string, CharacterConfig>? _configs;
+    // 动态方案槽位列表：高亮槽 = 当前方案（工作配置同步回该槽），
+    // 末尾始终保持一个 null 空槽用于“保存即新建”，数量不设上限。
+    private static readonly List<DeckConfigPreset?> _presets = new();
+    // 当前方案槽位索引（切换只移动高亮，不覆盖任何槽内容）
+    private static int _activePresetIndex = 0;
     private static bool _initialized;
     // 多人模式下按玩家 NetId 同步过来的配置（用于按玩家独立应用）
     private static readonly Dictionary<ulong, CharacterConfig> _remoteConfigs = new();
@@ -94,11 +142,15 @@ public static class ConfigManager
     public static void Load()
     {
         _configs = new Dictionary<string, CharacterConfig>(StringComparer.OrdinalIgnoreCase);
+        _presets.Clear();
+        _activePresetIndex = 0;
         try
         {
             if (!File.Exists(ConfigPath))
             {
                 Logger.Info($"[CustomStart] 配置文件不存在，创建默认配置: {ConfigPath}");
+                RecoverActiveSlot();
+                EnsureTrailingEmptySlot();
                 Save();
                 return;
             }
@@ -118,6 +170,39 @@ public static class ConfigManager
                     _configs[config.CharacterId] = config;
                 }
             }
+
+            if (doc.RootElement.TryGetProperty("presets", out JsonElement presetsEl) &&
+                presetsEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in presetsEl.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object) continue;
+                    var preset = new DeckConfigPreset();
+                    if (item.TryGetProperty("name", out var nameEl))
+                    {
+                        preset.Name = nameEl.GetString() ?? string.Empty;
+                    }
+                    if (item.TryGetProperty("characters", out var charsEl))
+                    {
+                        foreach (var prop in charsEl.EnumerateObject())
+                        {
+                            var config = ParseCharacterConfig(prop.Name, prop.Value);
+                            preset.Characters[config.CharacterId] = config;
+                        }
+                    }
+                    _presets.Add(preset);
+                }
+            }
+
+            if (doc.RootElement.TryGetProperty("activePresetIndex", out JsonElement activeEl) &&
+                activeEl.ValueKind == JsonValueKind.Number)
+            {
+                int idx = activeEl.GetInt32();
+                if (idx >= 0) _activePresetIndex = idx;
+            }
+
+            RecoverActiveSlot();
+            EnsureTrailingEmptySlot();
             Logger.Info($"[CustomStart] 加载配置成功，共 {_configs.Count} 个角色配置");
         }
         catch (Exception ex)
@@ -134,6 +219,11 @@ public static class ConfigManager
         if (_configs == null) _configs = new Dictionary<string, CharacterConfig>();
         try
         {
+            // 当前方案绑定：工作配置始终同步回高亮槽（名字保留）
+            RecoverActiveSlot();
+            _presets[_activePresetIndex].Characters = SnapshotConfigs(_configs);
+            EnsureTrailingEmptySlot();
+
             var config = new Dictionary<string, object>
             {
                 ["_readme"] = "定制开局 Mod 配置文件。请勿手动修改。",
@@ -145,9 +235,13 @@ public static class ConfigManager
                         customDeckCardTypes = kv.Value.CustomDeckCardTypes,
                         enableCustomDeck = kv.Value.EnableCustomDeck,
                         startingRelicTypes = kv.Value.StartingRelicTypes,
-                        enableCustomRelics = kv.Value.EnableCustomRelics
+                        enableCustomRelics = kv.Value.EnableCustomRelics,
+                        startingGold = kv.Value.StartingGold,
+                        maxHp = kv.Value.MaxHp
                     }
-                )
+                ),
+                ["presets"] = BuildPresetsJson(),
+                ["activePresetIndex"] = _activePresetIndex
             };
 
             string json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
@@ -417,6 +511,257 @@ public static class ConfigManager
     }
 
     /// <summary>
+    /// 当前方案槽位索引：高亮跟随当前方案，切换只改高亮、不覆盖任何槽内容。
+    /// </summary>
+    public static int ActivePresetIndex => _activePresetIndex;
+
+    /// <summary>
+    /// 当前槽位总数（含末尾空槽）。
+    /// </summary>
+    public static int GetPresetCount()
+    {
+        return _presets.Count;
+    }
+
+    /// <summary>
+    /// 获取指定槽位的方案（null = 空位）。
+    /// </summary>
+    public static DeckConfigPreset? GetPreset(int index)
+    {
+        return index >= 0 && index < _presets.Count ? _presets[index] : null;
+    }
+
+    /// <summary>
+    /// 指定槽位是否已保存过方案（有角色配置内容）。
+    /// </summary>
+    public static bool HasPreset(int index)
+    {
+        var preset = GetPreset(index);
+        return preset != null && preset.Characters.Count > 0;
+    }
+
+    /// <summary>
+    /// 将当前全部角色配置快照保存到指定槽位：
+    /// 空槽 = 新建方案（自动追加新的末尾空槽）；已保存槽 = 覆盖内容（保留名字）；当前槽 = 重写快照。
+    /// </summary>
+    public static void SavePreset(int index)
+    {
+        if (index < 0 || index >= _presets.Count) return;
+        if (_configs == null) Load();
+
+        var snapshot = BuildFullConfigSnapshot();
+        if (index == _activePresetIndex)
+        {
+            _presets[index].Characters = snapshot;
+            Logger.Info($"[CustomStart] 已保存当前方案（{snapshot.Count} 个角色）");
+        }
+        else
+        {
+            var existing = _presets[index];
+            if (existing == null || existing.Characters.Count == 0)
+            {
+                var newPreset = new DeckConfigPreset
+                {
+                    Name = existing?.Name ?? GenerateNextPresetName(),
+                    Characters = snapshot,
+                };
+                _presets[index] = newPreset;
+                Logger.Info($"[CustomStart] 已新建方案（{snapshot.Count} 个角色）");
+            }
+            else
+            {
+                existing.Characters = snapshot;
+                Logger.Info($"[CustomStart] 已保存方案（{snapshot.Count} 个角色）");
+            }
+        }
+        Save();
+    }
+
+    /// <summary>
+    /// 重命名指定槽位的方案。
+    /// </summary>
+    public static void RenamePreset(int index, string name)
+    {
+        if (index < 0 || index >= _presets.Count) return;
+        var preset = _presets[index];
+        if (preset == null)
+        {
+            preset = new DeckConfigPreset();
+            _presets[index] = preset;
+        }
+        preset.Name = string.IsNullOrWhiteSpace(name) ? GenerateNextPresetName() : name.Trim();
+        Save();
+        Logger.Info($"[CustomStart] 已重命名方案 {index}: {preset.Name}");
+    }
+
+    /// <summary>
+    /// 加载指定槽位的方案为当前方案：只移动高亮（active index），不覆盖任何槽内容。
+    /// </summary>
+    public static bool LoadPreset(int index)
+    {
+        if (index < 0 || index >= _presets.Count) return false;
+        var preset = _presets[index];
+        if (preset == null || preset.Characters.Count == 0) return false;
+
+        _configs = SnapshotConfigs(preset.Characters);
+        _activePresetIndex = index;
+        Save();
+        BroadcastAllLocalConfigs();
+        Logger.Info($"[CustomStart] 已切换到方案 {index}（{_configs.Count} 个角色）");
+        return true;
+    }
+
+    /// <summary>
+    /// 删除指定槽位的方案（可删当前槽，删除后高亮自动回退到最近槽；弹窗确认由 UI 负责）。
+    /// </summary>
+    public static bool DeletePreset(int index)
+    {
+        if (index < 0 || index >= _presets.Count) return false;
+        if (_presets[index] == null) return false;
+        _presets.RemoveAt(index);
+        RecoverActiveSlot();
+        EnsureTrailingEmptySlot();
+        Save();
+        Logger.Info($"[CustomStart] 已删除方案 {index}");
+        return true;
+    }
+
+    /// <summary>
+    /// 对配置字典做深拷贝快照。
+    /// </summary>
+    private static Dictionary<string, CharacterConfig> SnapshotConfigs(Dictionary<string, CharacterConfig> source)
+    {
+        var result = new Dictionary<string, CharacterConfig>(StringComparer.OrdinalIgnoreCase);
+        if (source == null) return result;
+        foreach (var kv in source)
+        {
+            result[kv.Key] = kv.Value.Clone();
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// 生成 presets 数组的 JSON 载荷：已保存/已命名槽序列化；空槽不序列化（加载时自动重建）。
+    /// </summary>
+    private static List<object?> BuildPresetsJson()
+    {
+        var result = new List<object?>();
+        foreach (var preset in _presets)
+        {
+            if (preset == null) continue;
+            var characters = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in preset.Characters)
+            {
+                characters[kv.Key] = new
+                {
+                    customDeckCardTypes = kv.Value.CustomDeckCardTypes,
+                    enableCustomDeck = kv.Value.EnableCustomDeck,
+                    startingRelicTypes = kv.Value.StartingRelicTypes,
+                    enableCustomRelics = kv.Value.EnableCustomRelics,
+                    startingGold = kv.Value.StartingGold,
+                    maxHp = kv.Value.MaxHp,
+                };
+            }
+            result.Add(new Dictionary<string, object>
+            {
+                ["name"] = preset.Name,
+                ["characters"] = characters,
+            });
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// 生成“方案N”默认名（N = 当前已保存槽数量 + 1，不含当前槽与空槽）。
+    /// </summary>
+    private static string GenerateNextPresetName()
+    {
+        int savedCount = 0;
+        for (int i = 0; i < _presets.Count; i++)
+        {
+            if (i == _activePresetIndex) continue;
+            var p = _presets[i];
+            if (p != null && p.Characters.Count > 0) savedCount++;
+        }
+        return L("CONFIG_PRESET_SLOT", savedCount + 1);
+    }
+
+    /// <summary>
+    /// 物化全部角色的配置快照（未配置角色自动补默认项）。
+    /// </summary>
+    private static Dictionary<string, CharacterConfig> BuildFullConfigSnapshot()
+    {
+        var snapshot = new Dictionary<string, CharacterConfig>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (var character in ModelDb.AllCharacters)
+            {
+                try
+                {
+                    string id = character.Id.Entry;
+                    if (string.IsNullOrEmpty(id)) continue;
+                    snapshot[id] = GetCharacterConfig(id).Clone();
+                }
+                catch { }
+            }
+        }
+        catch { }
+        if (snapshot.Count == 0 && _configs != null)
+        {
+            foreach (var kv in _configs)
+            {
+                snapshot[kv.Key] = kv.Value.Clone();
+            }
+        }
+        return snapshot;
+    }
+
+    /// <summary>
+    /// 保证槽位列表末尾始终有一个空槽（用于“保存即新建”）。
+    /// </summary>
+    private static void EnsureTrailingEmptySlot()
+    {
+        if (_presets.Count == 0)
+        {
+            _presets.Add(null);
+            return;
+        }
+        int lastIdx = _presets.Count - 1;
+        var last = _presets[lastIdx];
+        if (last == null) return;
+        if (lastIdx == _activePresetIndex || last.Characters.Count > 0)
+        {
+            _presets.Add(null);
+        }
+    }
+
+    /// <summary>
+    /// 恢复当前方案槽：越界或指向空槽时回退到最近的槽，全部为空则新建当前槽。
+    /// </summary>
+    private static void RecoverActiveSlot()
+    {
+        if (_presets.Count == 0)
+        {
+            _presets.Add(new DeckConfigPreset { Name = L("CONFIG_PRESET_CURRENT_DEFAULT") });
+            _activePresetIndex = 0;
+            return;
+        }
+        if (_activePresetIndex >= _presets.Count) _activePresetIndex = _presets.Count - 1;
+        if (_activePresetIndex < 0) _activePresetIndex = 0;
+        if (_presets[_activePresetIndex] != null) return;
+
+        for (int j = _activePresetIndex - 1; j >= 0; j--)
+        {
+            if (_presets[j] != null) { _activePresetIndex = j; return; }
+        }
+        for (int j = _activePresetIndex + 1; j < _presets.Count; j++)
+        {
+            if (_presets[j] != null) { _activePresetIndex = j; return; }
+        }
+        _presets[_activePresetIndex] = new DeckConfigPreset { Name = L("CONFIG_PRESET_CURRENT_DEFAULT") };
+    }
+
+    /// <summary>
     /// 获取角色的自定义卡组卡牌类型列表
     /// </summary>
     public static List<string> GetCustomDeckCardTypes(string characterId)
@@ -501,6 +846,16 @@ public static class ConfigManager
         if (element.TryGetProperty("enableCustomRelics", out var enableCustomRelics))
         {
             config.EnableCustomRelics = enableCustomRelics.GetBoolean();
+        }
+
+        if (element.TryGetProperty("startingGold", out var startingGold))
+        {
+            config.StartingGold = startingGold.GetInt32();
+        }
+
+        if (element.TryGetProperty("maxHp", out var maxHp))
+        {
+            config.MaxHp = maxHp.GetInt32();
         }
 
         return config;

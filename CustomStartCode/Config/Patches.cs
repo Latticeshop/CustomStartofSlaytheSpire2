@@ -379,6 +379,26 @@ public static class Patches
                 {
                     ApplyCustomRelics(__instance, config);
                 }
+
+                // 初始资源配置：金币与血量上限（0 = 使用角色默认值，不覆盖）
+                if (config.StartingGold > 0 && __instance.Gold != config.StartingGold)
+                {
+                    __instance.Gold = config.StartingGold;
+                    Logger.Info($"[CustomStart] 已应用初始金币: {config.StartingGold}（角色 {characterId}）");
+                }
+                if (config.MaxHp > 0)
+                {
+                    try
+                    {
+                        __instance.Creature.SetMaxHpInternal(config.MaxHp);
+                        __instance.Creature.SetCurrentHpInternal(config.MaxHp);
+                        Logger.Info($"[CustomStart] 已应用血量上限: {config.MaxHp}（角色 {characterId}）");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn($"[CustomStart] 应用血量上限失败: {ex.Message}");
+                    }
+                }
             }
             catch (Exception ex)
             {

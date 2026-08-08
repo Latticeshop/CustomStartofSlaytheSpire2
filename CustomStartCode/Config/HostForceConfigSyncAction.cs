@@ -77,6 +77,8 @@ public struct NetCharacterConfig : MegaCrit.Sts2.Core.Multiplayer.Serialization.
     public List<string> customDeckCardTypes;
     public bool enableCustomRelics;
     public List<string> startingRelicTypes;
+    public int startingGold;
+    public int maxHp;
 
     public NetCharacterConfig(CharacterConfig config)
     {
@@ -85,6 +87,8 @@ public struct NetCharacterConfig : MegaCrit.Sts2.Core.Multiplayer.Serialization.
         customDeckCardTypes = new List<string>(config.CustomDeckCardTypes);
         enableCustomRelics = config.EnableCustomRelics;
         startingRelicTypes = new List<string>(config.StartingRelicTypes);
+        startingGold = config.StartingGold;
+        maxHp = config.MaxHp;
     }
 
     public CharacterConfig ToConfig()
@@ -96,6 +100,8 @@ public struct NetCharacterConfig : MegaCrit.Sts2.Core.Multiplayer.Serialization.
             CustomDeckCardTypes = new List<string>(customDeckCardTypes ?? new List<string>()),
             EnableCustomRelics = enableCustomRelics,
             StartingRelicTypes = new List<string>(startingRelicTypes ?? new List<string>()),
+            StartingGold = startingGold,
+            MaxHp = maxHp,
         };
     }
 
@@ -120,6 +126,8 @@ public struct NetCharacterConfig : MegaCrit.Sts2.Core.Multiplayer.Serialization.
                 writer.WriteString(relicType);
             }
         }
+        writer.WriteInt(startingGold);
+        writer.WriteInt(maxHp);
     }
 
     public void Deserialize(MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader reader)
@@ -139,6 +147,8 @@ public struct NetCharacterConfig : MegaCrit.Sts2.Core.Multiplayer.Serialization.
         {
             startingRelicTypes.Add(reader.ReadString());
         }
+        startingGold = reader.ReadInt();
+        maxHp = reader.ReadInt();
     }
 }
 

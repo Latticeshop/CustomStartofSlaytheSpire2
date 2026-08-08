@@ -26,8 +26,14 @@ internal static class ConfigPanel
     private const string LocTable = "characters";
     private const string OverlayName = "CustomStartConfigOverlay";
     private const int OverlayZIndex = 1000;
-    private static readonly string[] FeatureIds = { "deck_config", "relic_config" };
-    private static string[] FeatureNames => new[] { L("CONFIG_FEATURE_DECK"), L("CONFIG_FEATURE_RELIC") };
+    private static readonly string[] FeatureIds = { "deck_config", "relic_config", "resource_config", "preset_config" };
+    private static string[] FeatureNames => new[]
+    {
+        L("CONFIG_FEATURE_DECK"),
+        L("CONFIG_FEATURE_RELIC"),
+        L("CONFIG_FEATURE_RESOURCE"),
+        L("CONFIG_FEATURE_PRESET"),
+    };
     private static readonly MegaCrit.Sts2.Core.Logging.Logger Logger = new("CustomStartConfigPanel", MegaCrit.Sts2.Core.Logging.LogType.Generic);
 
     private static Control? _layer;
@@ -44,6 +50,7 @@ internal static class ConfigPanel
     private static CharacterConfig? _currentConfig;
     private static CardLibraryTab? _cardLibraryTab;
     private static RelicLibraryTab? _relicLibraryTab;
+    private static bool _wasVisibleBeforeInspect;
 
     private static readonly Dictionary<string, Texture2D> _iconCache = new();
 
@@ -409,6 +416,14 @@ internal static class ConfigPanel
         // Update character info header
         UpdateCharacterInfo();
 
+        // 开局方案页与具体角色无关，无需先选角色
+        if (_activeFeature == 3)
+        {
+            UpdateCharacterIconHighlights();
+            BuildPresetConfigContent(_contentContainer);
+            return;
+        }
+
         if (string.IsNullOrEmpty(_selectedCharacterId))
         {
             var warnLabel = new Label();
@@ -432,6 +447,9 @@ internal static class ConfigPanel
                 break;
             case 1:
                 BuildRelicConfigContent(_contentContainer, config);
+                break;
+            case 2:
+                BuildResourceConfigContent(_contentContainer, config);
                 break;
         }
     }
@@ -899,6 +917,142 @@ internal static class ConfigPanel
         btnRow.AddChild(saveBtn);
     }
 
+    /// <summary>
+    /// 初始资源配置页：金币与血量上限（0 = 使用角色默认值）。
+    /// </summary>
+    private static void BuildResourceConfigContent(VBoxContainer container, CharacterConfig config)
+    {
+        var header = CreateSectionHeader(L("CONFIG_RESOURCE_TITLE"));
+        container.AddChild(header);
+
+        var desc = new Label();
+        desc.Text = L("CONFIG_RESOURCE_DESC");
+        desc.AddThemeFontSizeOverride("font_size", 13);
+        desc.AddThemeColorOverride("font_color", StsColors.gray);
+        desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        container.AddChild(desc);
+
+        int defaultGold = 0;
+        int defaultHp = 0;
+        try
+        {
+            var model = ModelDb.AllCharacters.FirstOrDefault(c =>
+            {
+                try { return c.Id.Entry == _selectedCharacterId; }
+                catch { return false; }
+            });
+            if (model != null)
+            {
+                defaultGold = model.StartingGold;
+                defaultHp = model.StartingHp;
+            }
+        }
+        catch { }
+
+        AddDivider(container);
+
+        var goldRow = new HBoxContainer();
+        goldRow.AddThemeConstantOverride("separation", 12);
+        goldRow.Alignment = BoxContainer.AlignmentMode.Center;
+        container.AddChild(goldRow);
+
+        var goldLabel = new Label();
+        goldLabel.Text = L("CONFIG_RESOURCE_GOLD");
+        goldLabel.AddThemeFontSizeOverride("font_size", 15);
+        goldLabel.AddThemeColorOverride("font_color", StsColors.cream);
+        goldLabel.CustomMinimumSize = new Vector2(120, 0);
+        goldRow.AddChild(goldLabel);
+
+        var goldSpin = new SpinBox();
+        goldSpin.MinValue = 0;
+        goldSpin.MaxValue = 99999;
+        goldSpin.Step = 1;
+        goldSpin.Value = config.StartingGold;
+        goldSpin.CustomMinimumSize = new Vector2(180, 36);
+        goldSpin.AddThemeFontSizeOverride("font_size", 14);
+        goldSpin.ValueChanged += v =>
+        {
+            config.StartingGold = (int)v;
+            ConfigManager.UpdateCharacterConfig(config);
+        };
+        goldRow.AddChild(goldSpin);
+
+        var goldDefault = new Label();
+        goldDefault.Text = L("CONFIG_RESOURCE_DEFAULT", defaultGold);
+        goldDefault.AddThemeFontSizeOverride("font_size", 12);
+        goldDefault.AddThemeColorOverride("font_color", StsColors.gray);
+        goldRow.AddChild(goldDefault);
+
+        var hpRow = new HBoxContainer();
+        hpRow.AddThemeConstantOverride("separation", 12);
+        hpRow.Alignment = BoxContainer.AlignmentMode.Center;
+        container.AddChild(hpRow);
+
+        var hpLabel = new Label();
+        hpLabel.Text = L("CONFIG_RESOURCE_HP");
+        hpLabel.AddThemeFontSizeOverride("font_size", 15);
+        hpLabel.AddThemeColorOverride("font_color", StsColors.cream);
+        hpLabel.CustomMinimumSize = new Vector2(120, 0);
+        hpRow.AddChild(hpLabel);
+
+        var hpSpin = new SpinBox();
+        hpSpin.MinValue = 0;
+        hpSpin.MaxValue = 99999;
+        hpSpin.Step = 1;
+        hpSpin.Value = config.MaxHp;
+        hpSpin.CustomMinimumSize = new Vector2(180, 36);
+        hpSpin.AddThemeFontSizeOverride("font_size", 14);
+        hpSpin.ValueChanged += v =>
+        {
+            config.MaxHp = (int)v;
+            ConfigManager.UpdateCharacterConfig(config);
+        };
+        hpRow.AddChild(hpSpin);
+
+        var hpDefault = new Label();
+        hpDefault.Text = L("CONFIG_RESOURCE_DEFAULT", defaultHp);
+        hpDefault.AddThemeFontSizeOverride("font_size", 12);
+        hpDefault.AddThemeColorOverride("font_color", StsColors.gray);
+        hpRow.AddChild(hpDefault);
+
+        var zeroHint = new Label();
+        zeroHint.Text = L("CONFIG_RESOURCE_ZERO_HINT");
+        zeroHint.AddThemeFontSizeOverride("font_size", 11);
+        zeroHint.AddThemeColorOverride("font_color", StsColors.gray);
+        container.AddChild(zeroHint);
+
+        var btnRow = new HBoxContainer();
+        btnRow.AddThemeConstantOverride("separation", 10);
+        btnRow.Alignment = BoxContainer.AlignmentMode.Center;
+        container.AddChild(btnRow);
+
+        var resetBtn = CreateActionButton(L("CONFIG_RESOURCE_RESET"), StsColors.red);
+        resetBtn.CustomMinimumSize = new Vector2(140, 36);
+        resetBtn.Pressed += () =>
+        {
+            config.StartingGold = 0;
+            config.MaxHp = 0;
+            ConfigManager.UpdateCharacterConfig(config);
+            RefreshContent();
+        };
+        btnRow.AddChild(resetBtn);
+
+        var saveBtn = CreateActionButton(L("CONFIG_SAVE"), StsColors.green);
+        saveBtn.CustomMinimumSize = new Vector2(120, 36);
+        saveBtn.Pressed += () =>
+        {
+            ShowConfirmDialog(
+                L("CONFIG_CONFIRM_SAVE_TITLE"),
+                L("CONFIG_CONFIRM_SAVE_DESC"),
+                () =>
+                {
+                    ConfigManager.Save();
+                    ShowNotification(L("CONFIG_SAVED"));
+                });
+        };
+        btnRow.AddChild(saveBtn);
+    }
+
     private static Control CreateRelicConfigTile(CharacterConfig config, string relicTypeName, int count)
     {
         var tile = new Control();
@@ -1098,6 +1252,8 @@ internal static class ConfigPanel
     {
         if (_layer != null && GodotObject.IsInstanceValid(_layer))
         {
+            // 记录打开详情前的可见状态，仅当配置面板本来就在显示时才在关闭后恢复
+            _wasVisibleBeforeInspect = _layer.Visible;
             _layer.ZIndex = -1;
             // 隐藏配置面板，让点击任意位置都落到详情页背板，点击即可关闭
             _layer.Visible = false;
@@ -1112,7 +1268,7 @@ internal static class ConfigPanel
         if (_layer != null && GodotObject.IsInstanceValid(_layer))
         {
             _layer.ZIndex = OverlayZIndex;
-            _layer.Visible = true;
+            _layer.Visible = _wasVisibleBeforeInspect;
         }
     }
 
@@ -1442,6 +1598,329 @@ internal static class ConfigPanel
         }
         catch { }
         return characters;
+    }
+
+    // ============ 开局方案存储 ============
+
+    /// <summary>
+    /// 开局方案存储页：动态槽位卡片，高亮 = 当前方案，单击不高亮不切换，双击直接切换。
+    /// </summary>
+    private static void BuildPresetConfigContent(VBoxContainer container)
+    {
+        var header = CreateSectionHeader(L("CONFIG_PRESET_PAGE_TITLE"));
+        container.AddChild(header);
+
+        var desc = new Label();
+        desc.Text = L("CONFIG_PRESET_PAGE_DESC");
+        desc.AddThemeFontSizeOverride("font_size", 13);
+        desc.AddThemeColorOverride("font_color", StsColors.gray);
+        desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        container.AddChild(desc);
+
+        AddDivider(container);
+
+        var grid = new GridContainer();
+        grid.Columns = 2;
+        grid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        grid.AddThemeConstantOverride("h_separation", 12);
+        grid.AddThemeConstantOverride("v_separation", 12);
+        container.AddChild(grid);
+
+        for (int i = 0; i < ConfigManager.GetPresetCount(); i++)
+        {
+            grid.AddChild(CreatePresetSlotCard(i));
+        }
+    }
+
+    private static Control CreatePresetSlotCard(int index)
+    {
+        var preset = ConfigManager.GetPreset(index);
+        bool filled = ConfigManager.HasPreset(index);
+        bool isActive = index == ConfigManager.ActivePresetIndex;
+        string name = preset?.Name ?? L("CONFIG_PRESET_EMPTY");
+
+        var card = new PanelContainer();
+        card.CustomMinimumSize = new Vector2(320, 0);
+        card.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+
+        var style = new StyleBoxFlat();
+        if (isActive)
+        {
+            style.BgColor = new Color(0.18f, 0.15f, 0.08f, 0.95f);
+            style.SetBorderWidthAll(2);
+            style.BorderColor = StsColors.gold;
+        }
+        else
+        {
+            style.BgColor = new Color(0.08f, 0.07f, 0.10f, 0.9f);
+            style.SetBorderWidthAll(1);
+            style.BorderColor = new Color(0.35f, 0.30f, 0.25f, 0.5f);
+        }
+        style.SetCornerRadiusAll(6);
+        style.SetContentMarginAll(10);
+        card.AddThemeStyleboxOverride("panel", style);
+
+        // 双击卡片空白处直接切换（空槽/当前槽无效，切换不再弹窗确认）
+        card.GuiInput += (InputEvent ev) =>
+        {
+            if (ev is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left, DoubleClick: true }
+                && filled && !isActive)
+            {
+                card.GetViewport()?.SetInputAsHandled();
+                SwitchToPreset(index);
+            }
+        };
+
+        var vbox = new VBoxContainer();
+        vbox.AddThemeConstantOverride("separation", 8);
+        card.AddChild(vbox);
+
+        // 名称行：编辑按钮（左上角）+ 名字 + 当前标记 + 删除按钮（右上角）
+        var nameRow = new HBoxContainer();
+        nameRow.AddThemeConstantOverride("separation", 6);
+        nameRow.Alignment = BoxContainer.AlignmentMode.Center;
+        vbox.AddChild(nameRow);
+
+        var editBtn = new Button();
+        editBtn.Text = L("CONFIG_PRESET_EDIT_NAME");
+        editBtn.CustomMinimumSize = new Vector2(30, 26);
+        editBtn.TooltipText = L("CONFIG_PRESET_RENAME_TOOLTIP");
+        editBtn.AddThemeFontSizeOverride("font_size", 12);
+        editBtn.AddThemeColorOverride("font_hover_color", StsColors.gold);
+        editBtn.AddThemeColorOverride("font_pressed_color", StsColors.gray);
+        // 空位（未命名空槽）不允许命名
+        editBtn.Disabled = preset == null;
+        ApplyFlatStyle(editBtn);
+        int capturedIndex = index;
+        editBtn.Pressed += () => ShowRenamePresetDialog(capturedIndex);
+        nameRow.AddChild(editBtn);
+
+        var nameLabel = new Label();
+        nameLabel.Text = name;
+        nameLabel.AddThemeFontSizeOverride("font_size", 16);
+        nameLabel.AddThemeColorOverride("font_color",
+            isActive ? StsColors.gold : filled ? StsColors.cream : StsColors.gray);
+        nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        nameRow.AddChild(nameLabel);
+
+        if (isActive)
+        {
+            var activeTag = new Label();
+            activeTag.Text = L("CONFIG_PRESET_CURRENT");
+            activeTag.AddThemeFontSizeOverride("font_size", 11);
+            activeTag.AddThemeColorOverride("font_color", StsColors.green);
+            nameRow.AddChild(activeTag);
+        }
+
+        // 删除按钮（右上角）：任何已存在的槽（含当前槽）均可删除，空槽占位不显示
+        if (ConfigManager.GetPreset(index) != null)
+        {
+            var deleteBtn = new Button();
+            deleteBtn.Text = "✕";
+            deleteBtn.CustomMinimumSize = new Vector2(30, 26);
+            deleteBtn.TooltipText = L("CONFIG_PRESET_DELETE_TOOLTIP");
+            deleteBtn.AddThemeFontSizeOverride("font_size", 12);
+            deleteBtn.AddThemeColorOverride("font_color", StsColors.gray);
+            deleteBtn.AddThemeColorOverride("font_hover_color", StsColors.red);
+            deleteBtn.AddThemeColorOverride("font_pressed_color", StsColors.red);
+            ApplyFlatStyle(deleteBtn);
+            deleteBtn.Pressed += () => ConfirmDeletePreset(capturedIndex);
+            nameRow.AddChild(deleteBtn);
+        }
+
+        // 状态行：已保存角色数 / 空位
+        var stateLabel = new Label();
+        stateLabel.Text = isActive
+            ? L("CONFIG_PRESET_SUMMARY", preset?.Characters.Count ?? 0)
+            : filled
+            ? L("CONFIG_PRESET_SUMMARY", preset!.Characters.Count)
+            : L("CONFIG_PRESET_EMPTY");
+        stateLabel.AddThemeFontSizeOverride("font_size", 12);
+        stateLabel.AddThemeColorOverride("font_color", isActive ? StsColors.gold : StsColors.gray);
+        vbox.AddChild(stateLabel);
+
+        // 按钮行：保存 / 切换
+        var btnRow = new HBoxContainer();
+        btnRow.AddThemeConstantOverride("separation", 10);
+        vbox.AddChild(btnRow);
+
+        var saveBtn = CreateActionButton(L("CONFIG_PRESET_SAVE_BTN"), StsColors.green);
+        saveBtn.CustomMinimumSize = new Vector2(110, 34);
+        saveBtn.Pressed += () => ConfirmSavePreset(capturedIndex);
+        btnRow.AddChild(saveBtn);
+
+        var switchBtn = CreateActionButton(L("CONFIG_PRESET_SWITCH_BTN"), StsColors.gold);
+        switchBtn.CustomMinimumSize = new Vector2(110, 34);
+        switchBtn.Disabled = !filled || isActive;
+        switchBtn.Pressed += () => SwitchToPreset(capturedIndex);
+        btnRow.AddChild(switchBtn);
+
+        return card;
+    }
+
+    private static void ConfirmSavePreset(int index)
+    {
+        if (index == ConfigManager.ActivePresetIndex)
+        {
+            ShowConfirmDialog(
+                L("CONFIG_PRESET_SAVE_TITLE"),
+                L("CONFIG_PRESET_SAVE_CURRENT_DESC"),
+                () =>
+                {
+                    ConfigManager.SavePreset(index);
+                    RefreshContent();
+                    ShowNotification(L("CONFIG_PRESET_SAVED_CURRENT"));
+                });
+        }
+        else if (ConfigManager.HasPreset(index))
+        {
+            ShowConfirmDialog(
+                L("CONFIG_PRESET_OVERWRITE_TITLE"),
+                L("CONFIG_PRESET_OVERWRITE_DESC", index + 1),
+                () =>
+                {
+                    ConfigManager.SavePreset(index);
+                    RefreshContent();
+                    ShowNotification(L("CONFIG_PRESET_SAVED", index + 1));
+                });
+        }
+        else
+        {
+            ShowConfirmDialog(
+                L("CONFIG_PRESET_NEW_TITLE"),
+                L("CONFIG_PRESET_NEW_DESC"),
+                () =>
+                {
+                    ConfigManager.SavePreset(index);
+                    RefreshContent();
+                    ShowNotification(L("CONFIG_PRESET_NEW_SAVED"));
+                });
+        }
+    }
+
+    /// <summary>
+    /// 直接切换方案：不覆盖任何槽内容、无确认弹窗（切换只移动高亮，随时可切回）。
+    /// </summary>
+    private static void SwitchToPreset(int index)
+    {
+        if (!ConfigManager.HasPreset(index)) return;
+        string presetName = ConfigManager.GetPreset(index)?.Name ?? L("CONFIG_PRESET_SLOT", index);
+        if (ConfigManager.LoadPreset(index))
+        {
+            RefreshContent();
+            ShowNotification(L("CONFIG_PRESET_LOADED", presetName));
+        }
+    }
+
+    private static void ConfirmDeletePreset(int index)
+    {
+        var preset = ConfigManager.GetPreset(index);
+        if (preset == null) return;
+        string presetName = preset.Name;
+        ShowConfirmDialog(
+            L("CONFIG_PRESET_DELETE_TITLE"),
+            L("CONFIG_PRESET_DELETE_DESC", presetName),
+            () =>
+            {
+                if (ConfigManager.DeletePreset(index))
+                {
+                    RefreshContent();
+                    ShowNotification(L("CONFIG_PRESET_DELETED", presetName));
+                }
+            });
+    }
+
+    /// <summary>
+    /// 方案命名对话框：输入框 + 确认/取消。
+    /// </summary>
+    private static void ShowRenamePresetDialog(int index)
+    {
+        if (_layer == null || !GodotObject.IsInstanceValid(_layer)) return;
+
+        var dialogMask = new ColorRect();
+        dialogMask.Color = new Color(0f, 0f, 0f, 0.5f);
+        dialogMask.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        dialogMask.MouseFilter = Control.MouseFilterEnum.Stop;
+        _layer.AddChild(dialogMask);
+
+        var dialog = new PanelContainer();
+        dialog.AnchorLeft = 0.5f;
+        dialog.AnchorRight = 0.5f;
+        dialog.AnchorTop = 0.5f;
+        dialog.AnchorBottom = 0.5f;
+        dialog.OffsetLeft = -180;
+        dialog.OffsetRight = 180;
+        dialog.GrowHorizontal = Control.GrowDirection.Both;
+        dialog.GrowVertical = Control.GrowDirection.Both;
+        dialog.MouseFilter = Control.MouseFilterEnum.Stop;
+
+        var dialogStyle = new StyleBoxFlat();
+        dialogStyle.BgColor = new Color(0.10f, 0.08f, 0.12f, 0.98f);
+        dialogStyle.SetBorderWidthAll(2);
+        dialogStyle.BorderColor = StsColors.gold;
+        dialogStyle.SetCornerRadiusAll(8);
+        dialogStyle.SetContentMargin(Side.Left, 14);
+        dialogStyle.SetContentMargin(Side.Right, 14);
+        dialogStyle.SetContentMargin(Side.Top, 16);
+        dialogStyle.SetContentMargin(Side.Bottom, 10);
+        dialog.AddThemeStyleboxOverride("panel", dialogStyle);
+        _layer.AddChild(dialog);
+
+        var vbox = new VBoxContainer();
+        vbox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        vbox.AddThemeConstantOverride("separation", 10);
+        dialog.AddChild(vbox);
+
+        var titleLabel = new Label();
+        titleLabel.Text = L("CONFIG_PRESET_RENAME_TITLE");
+        titleLabel.AddThemeFontSizeOverride("font_size", 18);
+        titleLabel.AddThemeColorOverride("font_color", StsColors.gold);
+        titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        titleLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        vbox.AddChild(titleLabel);
+
+        var descLabel = new Label();
+        descLabel.Text = L("CONFIG_PRESET_RENAME_DESC", index + 1);
+        descLabel.AddThemeFontSizeOverride("font_size", 13);
+        descLabel.AddThemeColorOverride("font_color", StsColors.cream);
+        descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        vbox.AddChild(descLabel);
+
+        var lineEdit = new LineEdit();
+        var existing = ConfigManager.GetPreset(index);
+        lineEdit.Text = existing?.Name ?? L("CONFIG_PRESET_SLOT", index + 1);
+        lineEdit.MaxLength = 20;
+        lineEdit.CustomMinimumSize = new Vector2(0, 34);
+        lineEdit.AddThemeFontSizeOverride("font_size", 14);
+        vbox.AddChild(lineEdit);
+
+        void CloseDialog()
+        {
+            if (GodotObject.IsInstanceValid(dialogMask)) dialogMask.QueueFree();
+            if (GodotObject.IsInstanceValid(dialog)) dialog.QueueFree();
+        }
+
+        var btnRow = new HBoxContainer();
+        btnRow.AddThemeConstantOverride("separation", 16);
+        btnRow.Alignment = BoxContainer.AlignmentMode.Center;
+        vbox.AddChild(btnRow);
+
+        var cancelBtn = CreateActionButton(L("CONFIG_CANCEL"), StsColors.cream);
+        cancelBtn.CustomMinimumSize = new Vector2(100, 36);
+        cancelBtn.Pressed += CloseDialog;
+        btnRow.AddChild(cancelBtn);
+
+        var confirmBtn = CreateActionButton(L("CONFIG_CONFIRM"), StsColors.gold);
+        confirmBtn.CustomMinimumSize = new Vector2(100, 36);
+        confirmBtn.Pressed += () =>
+        {
+            string newName = lineEdit.Text;
+            CloseDialog();
+            ConfigManager.RenamePreset(index, newName);
+            RefreshContent();
+            ShowNotification(L("CONFIG_PRESET_RENAMED", index + 1));
+        };
+        btnRow.AddChild(confirmBtn);
     }
 
     private static void ShowNotification(string message)

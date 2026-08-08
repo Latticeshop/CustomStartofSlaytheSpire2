@@ -17,6 +17,8 @@ public struct NetConfigSyncAction : INetAction, IPacketSerializable
     public List<string> customDeckCardTypes;
     public bool enableCustomRelics;
     public List<string> startingRelicTypes;
+    public int startingGold;
+    public int maxHp;
 
     public GameAction ToGameAction(Player player)
     {
@@ -26,7 +28,9 @@ public struct NetConfigSyncAction : INetAction, IPacketSerializable
             enableCustomDeck,
             customDeckCardTypes ?? new List<string>(),
             enableCustomRelics,
-            startingRelicTypes ?? new List<string>());
+            startingRelicTypes ?? new List<string>(),
+            startingGold,
+            maxHp);
     }
 
     public void Serialize(PacketWriter writer)
@@ -50,6 +54,8 @@ public struct NetConfigSyncAction : INetAction, IPacketSerializable
                 writer.WriteString(relicType);
             }
         }
+        writer.WriteInt(startingGold);
+        writer.WriteInt(maxHp);
     }
 
     public void Deserialize(PacketReader reader)
@@ -69,6 +75,8 @@ public struct NetConfigSyncAction : INetAction, IPacketSerializable
         {
             startingRelicTypes.Add(reader.ReadString());
         }
+        startingGold = reader.ReadInt();
+        maxHp = reader.ReadInt();
     }
 
     public override string ToString()

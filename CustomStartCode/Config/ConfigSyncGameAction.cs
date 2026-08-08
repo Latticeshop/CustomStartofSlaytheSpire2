@@ -30,6 +30,10 @@ public class ConfigSyncGameAction : GameAction
 
     public List<string> StartingRelicTypes { get; }
 
+    public int StartingGold { get; }
+
+    public int MaxHp { get; }
+
     public ConfigSyncGameAction(Player sender, CharacterConfig config)
     {
         Sender = sender;
@@ -38,6 +42,8 @@ public class ConfigSyncGameAction : GameAction
         CustomDeckCardTypes = new List<string>(config.CustomDeckCardTypes);
         EnableCustomRelics = config.EnableCustomRelics;
         StartingRelicTypes = new List<string>(config.StartingRelicTypes);
+        StartingGold = config.StartingGold;
+        MaxHp = config.MaxHp;
     }
 
     public ConfigSyncGameAction(
@@ -46,7 +52,9 @@ public class ConfigSyncGameAction : GameAction
         bool enableCustomDeck,
         List<string> customDeckCardTypes,
         bool enableCustomRelics,
-        List<string> startingRelicTypes)
+        List<string> startingRelicTypes,
+        int startingGold = 0,
+        int maxHp = 0)
     {
         Sender = sender;
         CharacterId = characterId;
@@ -54,6 +62,8 @@ public class ConfigSyncGameAction : GameAction
         CustomDeckCardTypes = customDeckCardTypes ?? new List<string>();
         EnableCustomRelics = enableCustomRelics;
         StartingRelicTypes = startingRelicTypes ?? new List<string>();
+        StartingGold = startingGold;
+        MaxHp = maxHp;
     }
 
     protected override async Task ExecuteAction()
@@ -65,6 +75,8 @@ public class ConfigSyncGameAction : GameAction
             CustomDeckCardTypes = new List<string>(CustomDeckCardTypes),
             EnableCustomRelics = EnableCustomRelics,
             StartingRelicTypes = new List<string>(StartingRelicTypes),
+            StartingGold = StartingGold,
+            MaxHp = MaxHp,
         };
         ConfigManager.SetRemoteCharacterConfig(Sender.NetId, config);
         await Task.CompletedTask;
@@ -79,6 +91,8 @@ public class ConfigSyncGameAction : GameAction
             customDeckCardTypes = CustomDeckCardTypes,
             enableCustomRelics = EnableCustomRelics,
             startingRelicTypes = StartingRelicTypes,
+            startingGold = StartingGold,
+            maxHp = MaxHp,
         };
     }
 

@@ -21,6 +21,7 @@ internal class RelicLibraryTab
 {
     private const int DefaultLayer = 103;
     private static CanvasLayer? _currentLayer;
+    private static bool _wasVisibleBeforeInspect;
 
     private readonly CharacterConfig _config;
     private readonly Action _onChanged;
@@ -151,6 +152,8 @@ internal class RelicLibraryTab
     {
         if (_currentLayer != null && GodotObject.IsInstanceValid(_currentLayer))
         {
+            // 记录打开详情前的可见状态，仅当遗物库本来就在显示时才在关闭后恢复
+            _wasVisibleBeforeInspect = _currentLayer.Visible;
             _currentLayer.Layer = -1;
             _currentLayer.Visible = false;
         }
@@ -164,7 +167,7 @@ internal class RelicLibraryTab
         if (_currentLayer != null && GodotObject.IsInstanceValid(_currentLayer))
         {
             _currentLayer.Layer = DefaultLayer;
-            _currentLayer.Visible = true;
+            _currentLayer.Visible = _wasVisibleBeforeInspect;
         }
     }
 
