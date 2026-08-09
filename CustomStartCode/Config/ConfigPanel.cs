@@ -326,11 +326,19 @@ internal static class ConfigPanel
         iconRowContainer.AddThemeStyleboxOverride("panel", iconRowStyle);
         contentVBox.AddChild(iconRowContainer);
 
+        // 角色栏横向滚动：角色过多时不会超出栏框
+        var iconScroll = new ScrollContainer();
+        iconScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        iconScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Auto;
+        iconScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
+        iconScroll.CustomMinimumSize = new Vector2(0, 96);
+        iconRowContainer.AddChild(iconScroll);
+
         _charIconRow = new HBoxContainer();
         _charIconRow.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         _charIconRow.AddThemeConstantOverride("separation", 16);
         _charIconRow.Alignment = BoxContainer.AlignmentMode.Center;
-        iconRowContainer.AddChild(_charIconRow);
+        iconScroll.AddChild(_charIconRow);
 
         var allCharacters = GetAllCharacters();
         if (allCharacters.Count == 0)
