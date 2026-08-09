@@ -325,7 +325,7 @@ internal class RelicLibraryTab
         // 悬停显示遗物详情
         tile.MouseEntered += () =>
         {
-            try { ShowHoverTips(tile, relic.HoverTips, HoverTipAlignment.Left); }
+            try { ShowHoverTips(tile, relic.HoverTips, HoverTip.GetHoverTipAlignment(tile)); }
             catch { }
         };
         tile.MouseExited += () => NHoverTipSet.Remove(tile);

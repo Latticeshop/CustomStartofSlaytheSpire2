@@ -517,7 +517,7 @@ internal class CardLibraryTab
         // 悬停提示
         clip.MouseEntered += () =>
         {
-            try { ShowHoverTips(clip, card.HoverTips, HoverTipAlignment.Left); }
+            try { ShowHoverTips(clip, card.HoverTips, HoverTip.GetHoverTipAlignment(clip)); }
             catch { }
         };
         clip.MouseExited += () => NHoverTipSet.Remove(clip);

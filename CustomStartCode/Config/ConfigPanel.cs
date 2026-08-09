@@ -1162,7 +1162,7 @@ internal static class ConfigPanel
     {
         try
         {
-            var tipSet = NHoverTipSet.CreateAndShow(owner, relic.HoverTips, HoverTipAlignment.Left);
+            var tipSet = NHoverTipSet.CreateAndShow(owner, relic.HoverTips, HoverTip.GetHoverTipAlignment(owner));
             if (tipSet != null && GodotObject.IsInstanceValid(tipSet))
             {
                 tipSet.GetParent()?.RemoveChild(tipSet);

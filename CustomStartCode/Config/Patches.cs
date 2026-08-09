@@ -447,10 +447,12 @@ public static class Patches
                 {
                     relic.FloorAddedToDeck = 1;
                     try { SaveManager.Instance.MarkRelicAsSeen(relic); } catch { }
-                    player.AddRelicInternal(relic, -1, false);
+                    // 不立即加入/触发：星盘、美味饼干等遗物的 AfterObtained 会打开选择面板，
+                    // 而 FinalizeStartingRelics 在 NRun 场景与 LocalContext.NetId 就绪之前调用它，
+                    // 单机会抛 "Cannot wait for remote choice in singleplayer!" 导致开局卡死。
+                    // 统一延迟到 NRun UI 就绪后由 StartingRelicPickupQueue 加入并执行拾取效果。
+                    StartingRelicPickupQueue.Enqueue(player, relic);
                 }
-                // 事件添加的图标默认隐藏（startsShown=false），这里把本地玩家遗物栏图标恢复可见
-                RevealLocalRelicInventoryIcons(player);
                 Logger.Info($"[CustomStart] 已应用自定义初始遗物，角色: {player.Character?.Id?.Entry}, 遗物数: {newRelics.Count}");
             }
             catch (Exception ex)
@@ -459,7 +461,7 @@ public static class Patches
             }
         }
 
-        private static void RevealLocalRelicInventoryIcons(Player player)
+        internal static void RevealLocalRelicInventoryIcons(Player player)
         {
             try
             {
@@ -1000,6 +1002,12 @@ public static class Patches
                 while (DateTimeOffset.UtcNow < deadline)
                 {
                     bool allReady = true;
+                    // 注意：遗物拾取效果的执行顺序必须在所有端完全一致！
+                    // 星盘/沉重石板/王室印章等效果会消耗 RunState.Rng.Niche 这类全队共享的 RNG 流，
+                    // 若各端按“本机优先”的不同交错顺序执行，共享 RNG 状态会分叉，
+                    // 离开事件房进入战斗时触发 checksum 不同步（StateDivergence）。
+                    // 因此这里保持 state.Players 顺序（全端一致），仅把“加入遗物”与“执行效果”拆分，
+                    // 由 StartingRelicPickupQueue 先统一分发、再按同一顺序逐个执行。
                     foreach (var player in state.Players)
                     {
                         if (player == null || applied.Contains(player.NetId)) continue;
