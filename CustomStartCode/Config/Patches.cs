@@ -256,7 +256,42 @@ public static class Patches
             Logger.Error($"[CustomStart] 遗物检视页层级补丁安装失败: {ex.Message}");
         }
 
+        // 补丁5: 继续游戏（LoadRun）后恢复未完成的遗物拾取效果。
+        // 开局首次存档早于选择面板弹出，SL 后存档里遗物已存在但效果未执行，
+        // 通过 PendingRelicMarker 标记按 seed 匹配后重新入队弹面板。
+        try
+        {
+            var loadRunMethod = AccessTools.Method(typeof(NGame), "LoadRun");
+            if (loadRunMethod != null)
+            {
+                harmony.Patch(
+                    original: loadRunMethod,
+                    prefix: new HarmonyMethod(typeof(LoadRunPatch), nameof(LoadRunPatch.Prefix))
+                );
+                Logger.Info("[CustomStart] 继续游戏遗物恢复补丁安装成功 (NGame.LoadRun)");
+            }
+            else
+            {
+                Logger.Warn("[CustomStart] 找不到 NGame.LoadRun 方法");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[CustomStart] 继续游戏遗物恢复补丁安装失败: {ex.Message}");
+        }
+
         Logger.Info("[CustomStart] 配置补丁安装完成");
+    }
+
+    /// <summary>
+    /// 继续游戏补丁：加载存档后恢复未完成的遗物拾取效果（SL 后重开选择面板）。
+    /// </summary>
+    public static class LoadRunPatch
+    {
+        public static void Prefix(RunState runState)
+        {
+            StartingRelicPickupQueue.CheckPendingPickupsAfterLoad(runState);
+        }
     }
 
     private static Type? FindType(string name, string? ns = null)
