@@ -3,7 +3,7 @@
 	"name": "CustomStart",
 	"author": "小格子铺",
 	"description": "自定义角色的初始卡组、初始遗物。",
-	"version": "0.6.2",
+	"version": "0.6.3",
 	"min_game_version": "0.107.0",
 	"has_pck": true,
 	"has_dll": true,
