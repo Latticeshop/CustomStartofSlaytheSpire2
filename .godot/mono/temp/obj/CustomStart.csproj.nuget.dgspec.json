@@ -10,7 +10,7 @@
         "projectUniqueName": "D:\\RedAlert2Project\\custom-start\\CustomStart.csproj",
         "projectName": "CustomStart",
         "projectPath": "D:\\RedAlert2Project\\custom-start\\CustomStart.csproj",
-        "packagesPath": "C:\\Users\\Latticeshop\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\Latticeshop\\.nuget\\packages",
         "outputPath": "D:\\RedAlert2Project\\custom-start\\.godot\\mono\\temp\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [

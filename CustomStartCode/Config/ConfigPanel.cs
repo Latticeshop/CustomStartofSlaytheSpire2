@@ -48,6 +48,8 @@ internal static class ConfigPanel
 
     private static string? _selectedCharacterId;
     private static CharacterConfig? _currentConfig;
+    private static SpinBox? _goldSpinBox;
+    private static SpinBox? _hpSpinBox;
     private static CardLibraryTab? _cardLibraryTab;
     private static RelicLibraryTab? _relicLibraryTab;
     private static bool _wasVisibleBeforeInspect;
@@ -87,6 +89,10 @@ internal static class ConfigPanel
             root.AddChild(_layer);
         }
 
+        if (_layer.Visible)
+        {
+            SaveCurrentCharacterConfig();
+        }
         _layer.Visible = !_layer.Visible;
     }
 
@@ -125,6 +131,7 @@ internal static class ConfigPanel
     {
         if (_layer != null && GodotObject.IsInstanceValid(_layer))
         {
+            SaveCurrentCharacterConfig();
             _layer.Visible = false;
         }
     }
@@ -397,6 +404,7 @@ internal static class ConfigPanel
 
     private static void SwitchFeature(int index)
     {
+        SaveCurrentCharacterConfig();
         _activeFeature = index;
         UpdateSidebarHighlights();
         RefreshContent();
@@ -418,6 +426,10 @@ internal static class ConfigPanel
 
     private static void RefreshContent()
     {
+        // 导航回调会在刷新前保存当前控件值；这里仅清理旧控件引用，避免把已替换的配置对象写回。
+        _goldSpinBox = null;
+        _hpSpinBox = null;
+
         if (_contentContainer == null) return;
         ClearChildren(_contentContainer);
 
@@ -578,6 +590,9 @@ internal static class ConfigPanel
                 () =>
                 {
                     ConfigManager.ResetCharacterConfig(_selectedCharacterId!);
+                    _currentConfig = null;
+                    _goldSpinBox = null;
+                    _hpSpinBox = null;
                     RefreshContent();
                 });
         };
@@ -660,6 +675,7 @@ internal static class ConfigPanel
         string charId = character.Id.Entry;
         iconBtn.Pressed += () =>
         {
+            SaveCurrentCharacterConfig();
             _selectedCharacterId = charId;
             RefreshContent();
         };
@@ -735,6 +751,26 @@ internal static class ConfigPanel
     }
 
     // ============ 数据辅助方法 ============
+
+    private static void SaveCurrentCharacterConfig()
+    {
+        if (_currentConfig == null || string.IsNullOrEmpty(_selectedCharacterId)) return;
+
+        try
+        {
+            if (_goldSpinBox != null && GodotObject.IsInstanceValid(_goldSpinBox))
+                _currentConfig.StartingGold = (int)_goldSpinBox.Value;
+            if (_hpSpinBox != null && GodotObject.IsInstanceValid(_hpSpinBox))
+                _currentConfig.MaxHp = (int)_hpSpinBox.Value;
+
+            _currentConfig.CharacterId = _selectedCharacterId;
+            ConfigManager.UpdateCharacterConfig(_currentConfig);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"保存当前角色配置失败: {ex.Message}");
+        }
+    }
 
     private static void ShowDefaultDeckInfo(VBoxContainer container, string characterId)
     {
@@ -978,6 +1014,7 @@ internal static class ConfigPanel
         goldSpin.Value = config.StartingGold;
         goldSpin.CustomMinimumSize = new Vector2(180, 36);
         goldSpin.AddThemeFontSizeOverride("font_size", 14);
+        _goldSpinBox = goldSpin;
         goldSpin.ValueChanged += v =>
         {
             config.StartingGold = (int)v;
@@ -1010,6 +1047,7 @@ internal static class ConfigPanel
         hpSpin.Value = config.MaxHp;
         hpSpin.CustomMinimumSize = new Vector2(180, 36);
         hpSpin.AddThemeFontSizeOverride("font_size", 14);
+        _hpSpinBox = hpSpin;
         hpSpin.ValueChanged += v =>
         {
             config.MaxHp = (int)v;
@@ -1812,9 +1850,13 @@ internal static class ConfigPanel
     private static void SwitchToPreset(int index)
     {
         if (!ConfigManager.HasPreset(index)) return;
+        SaveCurrentCharacterConfig();
         string presetName = ConfigManager.GetPreset(index)?.Name ?? L("CONFIG_PRESET_SLOT", index);
         if (ConfigManager.LoadPreset(index))
         {
+            _currentConfig = null;
+            _goldSpinBox = null;
+            _hpSpinBox = null;
             RefreshContent();
             ShowNotification(L("CONFIG_PRESET_LOADED", presetName));
         }
